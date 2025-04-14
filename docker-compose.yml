@@ -1,15 +1,17 @@
----
+
 version: "2.1"
 services:
   flaresolverr:
-    # DockerHub mirror flaresolverr/flaresolverr:latest
-    image: ghcr.io/flaresolverr/flaresolverr:latest
+    image: ghcr.io/roadrunner21/flaresolverr:latest
     container_name: flaresolverr
     environment:
       - LOG_LEVEL=${LOG_LEVEL:-info}
       - LOG_HTML=${LOG_HTML:-false}
       - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
       - TZ=Europe/London
+      # Resource blocking feature
+      - FS_ENABLE_BLOCKING=${FS_ENABLE_BLOCKING:-false}
+      - FS_BLOCKED_TYPES=${FS_BLOCKED_TYPES:-image,media,font,manifest,other}
     ports:
       - "${PORT:-8191}:8191"
     restart: unless-stopped

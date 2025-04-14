@@ -307,6 +307,42 @@ flaresolverr_request_duration_sum{domain="nowsecure.nl"} 5.858
 flaresolverr_request_duration_created{domain="nowsecure.nl"} 1.6901416571570296e+09
 ```
 
+# FlareSolverr Resource Blocking Feature
+
+This modified version of FlareSolverr adds the ability to block non-essential network resources (like images, videos, fonts) requested by the target website after Cloudflare challenges are likely passed, allowing you to significantly reduce data consumption for specific requests.
+
+## New Environment Variables
+
+Two new environment variables have been added to control the resource blocking feature:
+
+- `FS_ENABLE_BLOCKING`: Set to "true" to enable resource blocking, "false" (default) to disable it
+- `FS_BLOCKED_TYPES`: Comma-separated list of resource types to block (used only if blocking is enabled)
+
+## Default Blocked Types
+
+If `FS_ENABLE_BLOCKING` is set to "true" and `FS_BLOCKED_TYPES` is not specified, the following resource types will be blocked by default:
+
+```
+image,media,font,manifest,other
+```
+
+## Resource Types
+
+Chrome DevTools Protocol recognizes the following resource types that you can specify in the `FS_BLOCKED_TYPES` environment variable:
+
+- `document`: Main HTML documents
+- `stylesheet`: CSS stylesheets
+- `image`: Images
+- `media`: Videos, audio, and other media
+- `font`: Font files
+- `script`: JavaScript files
+- `xhr`: XMLHttpRequests and fetch API requests
+- `fetch`: Fetch API requests
+- `eventsource`: EventSource API requests
+- `websocket`: WebSocket connections
+- `manifest`: Web application manifests
+- `other`: Unspecified
+
 ## Captcha Solvers
 
 > **Warning**

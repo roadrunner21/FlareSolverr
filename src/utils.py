@@ -7,6 +7,7 @@ import shutil
 import sys
 import tempfile
 import urllib.parse
+from functools import partial
 
 from selenium.webdriver.chrome.webdriver import WebDriver
 import undetected_chromedriver as uc
@@ -122,42 +123,92 @@ def create_proxy_extension(proxy: dict) -> str:
     return proxy_extension_dir
 
 
+# --- NEW FUNCTION ---
+def _network_interceptor_callback(driver: WebDriver, event_data: dict, blocked_types: set):
+    """
+    Callback executed by the CDP event listener for each intercepted network request.
+    Decides whether to allow or block the request based on resource type.
+
+    Args:
+        driver: The WebDriver instance (needed to send CDP commands).
+        event_data: The raw event data from the 'Network.requestIntercepted' event.
+        blocked_types: A set of lowercase resource types to block (e.g., {'image', 'media'}).
+    """
+    interception_id = event_data.get('params', {}).get('interceptionId')
+    request_data = event_data.get('params', {}).get('request', {})
+    resource_type = event_data.get('params', {}).get('resourceType', '').lower()
+    url = request_data.get('url', '')
+
+    # Essential check: We need an interceptionId to respond
+    if not interception_id:
+        logging.error("CDP Interceptor: Received event without interceptionId!")
+        return
+
+    try:
+        # Decision Logic: Block if the type is in our set
+        if resource_type in blocked_types:
+            logging.debug(f"CDP Interceptor: BLOCKING '{resource_type}' request for URL: {url[:100]}...") # Log truncated URL
+            driver.execute_cdp_cmd('Network.continueInterceptedRequest', {
+                'interceptionId': interception_id,
+                'errorReason': 'Aborted'  # Tell Chrome to abort the request
+            })
+        else:
+            # Allow all other requests to proceed normally
+            # logging.debug(f"CDP Interceptor: Allowing '{resource_type}' request for URL: {url[:100]}...")
+            driver.execute_cdp_cmd('Network.continueInterceptedRequest', {
+                'interceptionId': interception_id
+            })
+    except Exception as e:
+        # Catch potential errors if the browser context disappears mid-processing
+        logging.warning(f"CDP Interceptor: Error processing interception {interception_id} for {url[:100]}: {e}")
+# --- END NEW FUNCTION ---
+
+
 def get_webdriver(proxy: dict = None) -> WebDriver:
     global PATCHED_DRIVER_PATH, USER_AGENT
     logging.debug('Launching web browser...')
 
+    # --- Configuration for Resource Blocking ---
+    enable_blocking = os.environ.get('FS_ENABLE_BLOCKING', 'false').lower() == 'true'
+    blocked_types_str = os.environ.get('FS_BLOCKED_TYPES', 'image,media,font,manifest,other') # Default list if enabled
+    blocked_types_set = set()
+    if enable_blocking:
+        blocked_types_set = {t.strip().lower() for t in blocked_types_str.split(',') if t.strip()}
+        logging.info(f"Resource blocking enabled. Blocking types: {blocked_types_set}")
+    # -----------------------------------------
+
     # undetected_chromedriver
     options = uc.ChromeOptions()
+    # --- Add existing options ---
     options.add_argument('--no-sandbox')
     options.add_argument('--window-size=1920,1080')
     options.add_argument('--disable-search-engine-choice-screen')
-    # todo: this param shows a warning in chrome head-full
     options.add_argument('--disable-setuid-sandbox')
     options.add_argument('--disable-dev-shm-usage')
-    # this option removes the zygote sandbox (it seems that the resolution is a bit faster)
     options.add_argument('--no-zygote')
-    # attempt to fix Docker ARM32 build
     IS_ARMARCH = platform.machine().startswith(('arm', 'aarch'))
     if IS_ARMARCH:
         options.add_argument('--disable-gpu-sandbox')
         options.add_argument('--disable-software-rasterizer')
     options.add_argument('--ignore-certificate-errors')
     options.add_argument('--ignore-ssl-errors')
-    # fix GL errors in ASUSTOR NAS
-    # https://github.com/FlareSolverr/FlareSolverr/issues/782
-    # https://github.com/microsoft/vscode/issues/127800#issuecomment-873342069
-    # https://peter.sh/experiments/chromium-command-line-switches/#use-gl
     options.add_argument('--use-gl=swiftshader')
+
+    # --- CDP Logging Pre-requisite ---
+    # Performance logs are needed for undetected-chromedriver's reactor to catch Network events
+    logging_prefs = {'performance': 'ALL', 'browser': 'ALL'}
+    options.set_capability('goog:loggingPrefs', logging_prefs)
+    # --------------------------------
 
     language = os.environ.get('LANG', None)
     if language is not None:
         options.add_argument('--accept-lang=%s' % language)
 
-    # Fix for Chrome 117 | https://github.com/FlareSolverr/FlareSolverr/issues/910
     if USER_AGENT is not None:
         options.add_argument('--user-agent=%s' % USER_AGENT)
 
     proxy_extension_dir = None
+    # --- Existing Proxy Logic (Keep As Is) ---
     if proxy and all(key in proxy for key in ['url', 'username', 'password']):
         proxy_extension_dir = create_proxy_extension(proxy)
         options.add_argument("--load-extension=%s" % os.path.abspath(proxy_extension_dir))
@@ -165,60 +216,95 @@ def get_webdriver(proxy: dict = None) -> WebDriver:
         proxy_url = proxy['url']
         logging.debug("Using webdriver proxy: %s", proxy_url)
         options.add_argument('--proxy-server=%s' % proxy_url)
+    # ---------------------------------------
 
-    # note: headless mode is detected (headless = True)
-    # we launch the browser in head-full mode with the window hidden
     windows_headless = False
+    # --- Existing Headless Logic (Keep As Is) ---
     if get_config_headless():
         if os.name == 'nt':
             windows_headless = True
         else:
             start_xvfb_display()
-    # For normal headless mode:
-    # options.add_argument('--headless')
+    # ---------------------------------------
 
     options.add_argument("--auto-open-devtools-for-tabs")
 
-    # if we are inside the Docker container, we avoid downloading the driver
+    # --- Existing Driver/Browser Path Logic (Keep As Is) ---
     driver_exe_path = None
     version_main = None
     if os.path.exists("/app/chromedriver"):
-        # running inside Docker
         driver_exe_path = "/app/chromedriver"
     else:
         version_main = get_chrome_major_version()
         if PATCHED_DRIVER_PATH is not None:
             driver_exe_path = PATCHED_DRIVER_PATH
-
-    # detect chrome path
     browser_executable_path = get_chrome_exe_path()
+    # ------------------------------------------------------
 
-    # downloads and patches the chromedriver
-    # if we don't set driver_executable_path it downloads, patches, and deletes the driver each time
+    driver = None  # Initialize driver to None
     try:
+        # --- Create the Driver Instance ---
         driver = uc.Chrome(options=options, browser_executable_path=browser_executable_path,
                            driver_executable_path=driver_exe_path, version_main=version_main,
                            windows_headless=windows_headless, headless=get_config_headless())
-    except Exception as e:
-        logging.error("Error starting Chrome: %s" % e)
+        # ---------------------------------
 
-    # save the patched driver to avoid re-downloads
-    if driver_exe_path is None:
+        # --- SETUP CDP INTERCEPTION (if enabled) ---
+        if enable_blocking and driver is not None:
+            if driver.reactor:  # Check if the event listener thread is available
+                logging.info("Setting up CDP network request interceptor...")
+                try:
+                    # 1. Register the callback for the 'Network.requestIntercepted' event
+                    #    We use partial to pass the driver and the blocked_types set to the callback.
+                    bound_callback = partial(_network_interceptor_callback, driver, blocked_types=blocked_types_set)
+                    driver.add_cdp_listener("Network.requestIntercepted", bound_callback)
+
+                    # 2. Enable network interception for all URL patterns.
+                    #    The decision to block/allow happens in the callback.
+                    driver.execute_cdp_cmd("Network.setRequestInterception", {"patterns": [{"urlPattern": "*"}]})
+                    logging.info("CDP network request interceptor enabled successfully.")
+                except Exception as setup_e:
+                    logging.error(f"Failed to set up CDP interception: {setup_e}. Resource blocking will be disabled.")
+                    # Optionally, disable blocking if setup fails: enable_blocking = False
+            else:
+                logging.warning("CDP event reactor not running, cannot set up network interception. Resource blocking disabled.")
+                # Optionally, disable blocking if reactor is not available: enable_blocking = False
+        # ------------------------------------------
+
+    except Exception as e:
+        logging.error(f"Error starting Chrome or setting up interceptor: {e}")
+        # Ensure driver is cleaned up if initialization failed mid-way
+        if driver is not None:
+            try:
+                if get_current_platform() == "nt":
+                    driver.close()
+                driver.quit()
+            except Exception as cleanup_e:
+                logging.error(f"Error cleaning up driver after failed start: {cleanup_e}")
+        raise e  # Re-raise the original exception to signal failure
+
+    # --- Existing Patched Driver Saving Logic (Keep As Is, ensure driver exists) ---
+    if driver_exe_path is None and driver is not None and driver.patcher:
         PATCHED_DRIVER_PATH = os.path.join(driver.patcher.data_path, driver.patcher.exe_name)
         if PATCHED_DRIVER_PATH != driver.patcher.executable_path:
-            shutil.copy(driver.patcher.executable_path, PATCHED_DRIVER_PATH)
+             # Check if source exists before copying
+            if os.path.exists(driver.patcher.executable_path):
+                try:
+                    shutil.copy(driver.patcher.executable_path, PATCHED_DRIVER_PATH)
+                except Exception as copy_e:
+                    logging.error(f"Failed to copy patched driver: {copy_e}")
+            else:
+                logging.error(f"Source patched driver not found at {driver.patcher.executable_path}")
+    # -----------------------------------------------------------------------------
 
-    # clean up proxy extension directory
+    # --- Existing Proxy Extension Cleanup (Keep As Is) ---
     if proxy_extension_dir is not None:
         shutil.rmtree(proxy_extension_dir)
+    # ----------------------------------------------------
 
-    # selenium vanilla
-    # options = webdriver.ChromeOptions()
-    # options.add_argument('--no-sandbox')
-    # options.add_argument('--window-size=1920,1080')
-    # options.add_argument('--disable-setuid-sandbox')
-    # options.add_argument('--disable-dev-shm-usage')
-    # driver = webdriver.Chrome(options=options)
+    if driver is None:
+        # This should ideally not be reached if exceptions are raised correctly above
+        raise Exception("WebDriver initialization failed.")
 
     return driver
 

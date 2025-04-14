@@ -76,3 +76,7 @@ CMD ["/usr/local/bin/python", "-u", "/app/flaresolverr.py"]
 # docker buildx create --use
 # docker buildx build -t ngosang/flaresolverr:3.3.21 --platform linux/arm/v7 --load .
 # docker run -p 8191:8191 --platform linux/arm/v7 ngosang/flaresolverr:3.3.21
+
+# Environment variables for resource blocking (documented, but not set by default)
+# ENV FS_ENABLE_BLOCKING=false
+# ENV FS_BLOCKED_TYPES=image,media,font,manifest,other
