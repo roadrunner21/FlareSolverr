@@ -1,17 +1,19 @@
-
 version: "2.1"
+
 services:
   flaresolverr:
     image: ghcr.io/roadrunner21/flaresolverr:latest
     container_name: flaresolverr
     environment:
-      - LOG_LEVEL=${LOG_LEVEL:-info}
-      - LOG_HTML=${LOG_HTML:-false}
-      - CAPTCHA_SOLVER=${CAPTCHA_SOLVER:-none}
-      - TZ=Europe/London
-      # Resource blocking feature
-      - FS_ENABLE_BLOCKING=${FS_ENABLE_BLOCKING:-false}
-      - FS_BLOCKED_TYPES=${FS_BLOCKED_TYPES:-image,media,font,manifest,other}
+      LOG_LEVEL: "${LOG_LEVEL}"
+      LOG_HTML: "${LOG_HTML}"
+      CAPTCHA_SOLVER: "${CAPTCHA_SOLVER}"
+      TZ: "Europe/London"
+
+      FS_BLOCK_URLS: "*.assets.kick.com/*,*://*.googletagmanager.*"
+      FS_BLOCK_EXT: ".m3u8,.mpd"
+      FS_BLOCK_TYPES: "Image,Media"
+      # FS_BLOCK_DEFAULTS: "true"  # Optional: blanket media block
     ports:
       - "${PORT:-8191}:8191"
     restart: unless-stopped

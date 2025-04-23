@@ -59,7 +59,7 @@ docker run -d \
   ghcr.io/flaresolverr/flaresolverr:latest
 ```
 
-If your host OS is Debian, make sure `libseccomp2` version is 2.5.x. You can check the version with `sudo apt-cache policy libseccomp2` 
+If your host OS is Debian, make sure `libseccomp2` version is 2.5.x. You can check the version with `sudo apt-cache policy libseccomp2`
 and update the package with `sudo apt install libseccomp2=2.5.1-1~bpo10+1` or `sudo apt install libseccomp2=2.5.1-1+deb11u1`.
 Remember to restart the Docker daemon and the container after the update.
 
@@ -196,58 +196,58 @@ Example response from running the `curl` above:
 
 ```json
 {
-    "solution": {
-        "url": "https://www.google.com/?gws_rd=ssl",
-        "status": 200,
-        "headers": {
-            "status": "200",
-            "date": "Thu, 16 Jul 2020 04:15:49 GMT",
-            "expires": "-1",
-            "cache-control": "private, max-age=0",
-            "content-type": "text/html; charset=UTF-8",
-            "strict-transport-security": "max-age=31536000",
-            "p3p": "CP=\"This is not a P3P policy! See g.co/p3phelp for more info.\"",
-            "content-encoding": "br",
-            "server": "gws",
-            "content-length": "61587",
-            "x-xss-protection": "0",
-            "x-frame-options": "SAMEORIGIN",
-            "set-cookie": "1P_JAR=2020-07-16-04; expires=Sat..."
-        },
-        "response":"<!DOCTYPE html>...",
-        "cookies": [
-            {
-                "name": "NID",
-                "value": "204=QE3Ocq15XalczqjuDy52HeseG3zAZuJzID3R57...",
-                "domain": ".google.com",
-                "path": "/",
-                "expires": 1610684149.307722,
-                "size": 178,
-                "httpOnly": true,
-                "secure": true,
-                "session": false,
-                "sameSite": "None"
-            },
-            {
-                "name": "1P_JAR",
-                "value": "2020-07-16-04",
-                "domain": ".google.com",
-                "path": "/",
-                "expires": 1597464949.307626,
-                "size": 19,
-                "httpOnly": false,
-                "secure": true,
-                "session": false,
-                "sameSite": "None"
-            }
-        ],
-        "userAgent": "Windows NT 10.0; Win64; x64) AppleWebKit/5..."
+  "solution": {
+    "url": "https://www.google.com/?gws_rd=ssl",
+    "status": 200,
+    "headers": {
+      "status": "200",
+      "date": "Thu, 16 Jul 2020 04:15:49 GMT",
+      "expires": "-1",
+      "cache-control": "private, max-age=0",
+      "content-type": "text/html; charset=UTF-8",
+      "strict-transport-security": "max-age=31536000",
+      "p3p": "CP=\"This is not a P3P policy! See g.co/p3phelp for more info.\"",
+      "content-encoding": "br",
+      "server": "gws",
+      "content-length": "61587",
+      "x-xss-protection": "0",
+      "x-frame-options": "SAMEORIGIN",
+      "set-cookie": "1P_JAR=2020-07-16-04; expires=Sat..."
     },
-    "status": "ok",
-    "message": "",
-    "startTimestamp": 1594872947467,
-    "endTimestamp": 1594872949617,
-    "version": "1.0.0"
+    "response":"<!DOCTYPE html>...",
+    "cookies": [
+      {
+        "name": "NID",
+        "value": "204=QE3Ocq15XalczqjuDy52HeseG3zAZuJzID3R57...",
+        "domain": ".google.com",
+        "path": "/",
+        "expires": 1610684149.307722,
+        "size": 178,
+        "httpOnly": true,
+        "secure": true,
+        "session": false,
+        "sameSite": "None"
+      },
+      {
+        "name": "1P_JAR",
+        "value": "2020-07-16-04",
+        "domain": ".google.com",
+        "path": "/",
+        "expires": 1597464949.307626,
+        "size": 19,
+        "httpOnly": false,
+        "secure": true,
+        "session": false,
+        "sameSite": "None"
+      }
+    ],
+    "userAgent": "Windows NT 10.0; Win64; x64) AppleWebKit/5..."
+  },
+  "status": "ok",
+  "message": "",
+  "startTimestamp": 1594872947467,
+  "endTimestamp": 1594872949617,
+  "version": "1.0.0"
 }
 ```
 
@@ -275,11 +275,52 @@ This is the same as `request.get` but it takes one more param:
 | HOST               | 0.0.0.0                | Listening interface. You don't need to change this if you are running on Docker.                                                                              |
 | PROMETHEUS_ENABLED | false                  | Enable Prometheus exporter. See the Prometheus section below.                                                                                                 |
 | PROMETHEUS_PORT    | 8192                   | Listening port for Prometheus exporter. See the Prometheus section below.                                                                                     |
+| FS_BLOCK_URLS      | none                   | Comma-separated list of URL globs (DevTools * wild-cards allowed) that must never be fetched. Example: `*.assets.kick.com/*,*://*.googletagmanager.*`         |
+| FS_BLOCK_EXT       | none                   | Comma-separated file extensions (case-insensitive) to block. The generated glob becomes *.<ext>. Example: `.m3u8,.mp4,.jpg`                                   |
+| FS_BLOCK_TYPES     | none                   | Comma-separated list of DevTools resourceTypes to abort completely. Example: `Image,Media`                                                                    |
+| FS_BLOCK_DEFAULTS  | false                  | If it exists and is "true", you still load HTML/CSS/JS but block all images, fonts, audio & video (good for pure scraping).                                   |
 
 Environment variables are set differently depending on the operating system. Some examples:
 * Docker: Take a look at the Docker section in this document. Environment variables can be set in the `docker-compose.yml` file or in the Docker CLI command.
 * Linux: Run `export LOG_LEVEL=debug` and then run `flaresolverr` in the same shell.
 * Windows: Open `cmd.exe`, run `set LOG_LEVEL=debug` and then run `flaresolverr.exe` in the same shell.
+
+## Request Blocking Feature
+
+FlareSolverr includes a request blocking feature that allows you to reduce bandwidth usage by blocking non-essential resources like images, videos, fonts, and more. This is particularly useful when you're only interested in the HTML content or cookies after passing Cloudflare's challenges.
+
+### Configuration
+
+Request blocking is configured through environment variables that can be set in your docker-compose.yml file or as command-line parameters:
+
+| Variable         | Description                                                           | Example Value                                    |
+|------------------|-----------------------------------------------------------------------|--------------------------------------------------|
+| FS_BLOCK_URLS    | URL patterns to block (DevTools wildcard format)                      | `*.assets.kick.com/*,*://*.googletagmanager.*`   |
+| FS_BLOCK_EXT     | File extensions to block (comma-separated)                            | `.m3u8,.mp4,.jpg`                                |
+| FS_BLOCK_TYPES   | DevTools resource types to block completely                           | `Image,Media`                                     |
+| FS_BLOCK_DEFAULTS| Set to "true" to block images, media, and fonts automatically         | `true`                                           |
+
+### Resource Type Reference
+
+When using `FS_BLOCK_TYPES`, you can specify any of these Chrome DevTools resource types:
+
+- `Document`: Main HTML documents
+- `Stylesheet`: CSS files
+- `Image`: Images (jpg, png, gif, etc.)
+- `Media`: Audio and video files
+- `Font`: Web fonts
+- `Script`: JavaScript files
+- `XHR`: XMLHttpRequest calls
+- `Fetch`: Fetch API requests
+- `Websocket`: WebSocket connections
+- `Manifest`: Web application manifests
+- `Other`: Any other resource type
+
+### Blocking Behavior
+
+- If you set `FS_BLOCK_DEFAULTS=true`, FlareSolverr will automatically block Image, Media, and Font resources
+- All blocking occurs at the network request level before resources are downloaded
+- The main document, CSS, and JavaScript still load, ensuring that Cloudflare challenges can be solved
 
 ## Prometheus exporter
 
@@ -306,42 +347,6 @@ flaresolverr_request_duration_sum{domain="nowsecure.nl"} 5.858
 # TYPE flaresolverr_request_duration_created gauge
 flaresolverr_request_duration_created{domain="nowsecure.nl"} 1.6901416571570296e+09
 ```
-
-# FlareSolverr Resource Blocking Feature
-
-This modified version of FlareSolverr adds the ability to block non-essential network resources (like images, videos, fonts) requested by the target website after Cloudflare challenges are likely passed, allowing you to significantly reduce data consumption for specific requests.
-
-## New Environment Variables
-
-Two new environment variables have been added to control the resource blocking feature:
-
-- `FS_ENABLE_BLOCKING`: Set to "true" to enable resource blocking, "false" (default) to disable it
-- `FS_BLOCKED_TYPES`: Comma-separated list of resource types to block (used only if blocking is enabled)
-
-## Default Blocked Types
-
-If `FS_ENABLE_BLOCKING` is set to "true" and `FS_BLOCKED_TYPES` is not specified, the following resource types will be blocked by default:
-
-```
-image,media,font,manifest,other
-```
-
-## Resource Types
-
-Chrome DevTools Protocol recognizes the following resource types that you can specify in the `FS_BLOCKED_TYPES` environment variable:
-
-- `document`: Main HTML documents
-- `stylesheet`: CSS stylesheets
-- `image`: Images
-- `media`: Videos, audio, and other media
-- `font`: Font files
-- `script`: JavaScript files
-- `xhr`: XMLHttpRequests and fetch API requests
-- `fetch`: Fetch API requests
-- `eventsource`: EventSource API requests
-- `websocket`: WebSocket connections
-- `manifest`: Web application manifests
-- `other`: Unspecified
 
 ## Captcha Solvers
 
