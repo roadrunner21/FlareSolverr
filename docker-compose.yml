@@ -10,8 +10,8 @@ services:
       CAPTCHA_SOLVER: "${CAPTCHA_SOLVER}"
       TZ: "Europe/London"
 
-      FS_BLOCK_URLS: "*.assets.kick.com/*,*://*.googletagmanager.*"
-      FS_BLOCK_EXT: ".m3u8,.mpd"
+      FS_BLOCK_URLS: "*.assets.google.com/*,*://*.googletagmanager.*"
+      FS_BLOCK_EXT: ".m3u8,.ts,.mpd"
       FS_BLOCK_TYPES: "Image,Media"
       # FS_BLOCK_DEFAULTS: "true"  # Optional: blanket media block
     ports:
